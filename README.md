@@ -1,6 +1,6 @@
 # 6G-DALI MLOps Service Layer — DBML Schemas
 
-This repository contains the DBML (Database Markup Language) entity-relationship schemas of the **6G-DALI MLOps Service Management Layer**, developed by Nextworks within the [6G-DALI](https://6g-dali.eu) project (Grant Agreement No. 101139161, funded by the European Union under the Horizon Europe programme).
+This repository contains the DBML (Database Markup Language) entity-relationship schemas of the **6G-DALI MLOps Service Management Layer**, developed by Nextworks within the [6G-DALI](https://6g-dali.eu)](https://6gdali.eu/) project (Grant Agreement No. 101139161, funded by the European Union under the Horizon Europe programme).
 
 The schemas document the data model of the MLOps Service Layer backend, grounding each entity in the **3GPP TS 28.105** information model where applicable and clearly marking DALI-specific extensions and new contributions.
 
