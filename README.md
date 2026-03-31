@@ -57,6 +57,4 @@ These schemas are part of the initial implementation results of the **MLOps Serv
 ---
 
 ## Authors
-
-Marco Ruta — Nextworks S.r.l.  
-6G-DALI Work Package 3 — Data Management, MLOps, RLOps and Trustworthy AI
+Nextworks S.r.l.  
