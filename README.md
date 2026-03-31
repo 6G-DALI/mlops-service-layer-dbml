@@ -43,13 +43,6 @@ The `.dbml` files can be imported directly into **[dbdiagram.io](https://dbdiagr
 
 ---
 
-## Standards Baseline
-
-The information model is grounded in the following 3GPP specifications:
-
-- **3GPP TS 28.105** — Management of artificial intelligence/machine learning (AI/ML) model lifecycle for mobile networks
----
-
 ## Context
 
 These schemas are part of the initial implementation results of the **MLOps Service Management Layer** described in Deliverable D3.1 of the 6G-DALI project. The Service Layer provides a unified, tool-agnostic management interface for the full ML lifecycle — covering training, validation, deployment, monitoring, hyperparameter optimisation, federated learning, transfer learning, and trustworthiness assessment — exposed as AIaaS REST APIs to experimenters and administrators across the 6G-DALI testbed federation.
