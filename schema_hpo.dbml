@@ -1,0 +1,138 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// 6G-DALI MLOps Service Layer — HPO Domain
+// ─────────────────────────────────────────────────────────────────────────────
+// Generated from schema_full.dbml — do not edit by hand.
+//
+// Origin legend (notes):
+//   [28.105]      — directly from TS 28.105
+//   [28.105 Top]  — Top IOC fields (TS 28.622 Top, baseline for TS 28.105)
+//   [DALI ext]    — DALI extension of an existing standard attribute
+//   [DALI new]    — new field introduced by DALI
+//   [DALI-MAP]    — 6G-DALI-MAP metadata profile (MLDCAT-AP 2.0 subset)
+//
+// Tables marked "context only" are shown with their key fields so the diagram
+// renders standalone; their authoritative definition lives in schema_admin.dbml, schema_catalogue.dbml, schema_testbeds.dbml.
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+Table hpo_campaigns [note: 'DALI new — registration-level entity. One model + dataset + train script registered on exactly one testbed HPO platform; holds N runs.'] {
+  id                          uuid        [pk, note: '[28.105 Top]']
+  created_at                  timestamp   [not null, note: '[28.105 Top]']
+  updated_at                  timestamp   [not null, note: '[28.105 Top]']
+  managed_by                  varchar     [note: '[28.105 Top]']
+  name                        varchar     [not null, note: '[DALI new]']
+  description                 text        [note: '[DALI new]']
+  status                      varchar     [not null, default: 'draft', note: '[DALI new] draft | registering | registered | failed | archived']
+  visibility                  varchar     [not null, default: 'project', note: '[DALI new] private | project | public']
+  project_id                  uuid        [not null, ref: > projects.id, note: '[DALI new]']
+  owner_id                    uuid        [ref: > users.id, note: '[DALI new]']
+  testbed_id                  uuid        [not null, ref: > testbeds.id, note: '[DALI new] a campaign is bound to exactly one testbed']
+  target_model_entry_id       uuid        [ref: > ml_model_entries.id, note: '[DALI new]']
+  model_id                    uuid        [ref: > ml_models.id, note: '[DALI new] the EMPTY-shell version this campaign optimises']
+  dataset_id                  uuid        [ref: > datasets.id, note: '[DALI new]']
+  train_script_artifact_id    uuid        [ref: > ml_model_artifacts.id, note: '[DALI new] kind hpo_train_script — required at create time']
+  requirements_artifact_id    uuid        [ref: > ml_model_artifacts.id, note: '[DALI new] kind hpo_requirements']
+  base_image_artifact_id      uuid        [ref: > ml_model_artifacts.id, note: '[DALI new] kind hpo_base_image']
+  external_ref                json        [note: '[DALI new] {plugin: hpo_ado, campaign_id: …}']
+  search_space                json        [note: '[DALI new] parsed @parameter space returned at registration']
+  objective                   json        [note: '[DALI new] parsed @objective — name + direction']
+  registration_raw            json        [note: '[DALI new] untouched registration response, insurance against shape drift']
+  registered_at               timestamp   [note: '[DALI new]']
+  registration_error          text        [note: '[DALI new]']
+
+  indexes {
+    (project_id, name) [unique, name: 'uq_hpo_campaign_project_name']
+  }
+}
+
+Table hpo_requests [note: 'DALI new — intent to run one optimisation run on a campaign'] {
+  id                  uuid        [pk, note: '[28.105 Top]']
+  created_at          timestamp   [not null, note: '[28.105 Top]']
+  updated_at          timestamp   [not null, note: '[28.105 Top]']
+  managed_by          varchar     [note: '[28.105 Top]']
+  name                varchar     [not null, note: '[DALI new]']
+  description         text        [note: '[DALI new]']
+  status              varchar     [not null, default: 'not_started', note: '[DALI ext] requestStatus vocabulary']
+  optimizer           varchar     [note: '[DALI new] falls back to the plugin default at accept time']
+  num_samples         int         [not null, default: 10, note: '[DALI new] trials to run']
+  max_concurrent      int         [not null, default: 1, note: '[DALI new]']
+  space_overrides     json        [note: '[DALI new] per-run overrides of the campaign search space']
+  campaign_id         uuid        [not null, ref: > hpo_campaigns.id, note: '[DALI new]']
+  project_id          uuid        [not null, ref: > projects.id, note: '[DALI new]']
+  submitted_by_id     uuid        [ref: > users.id, note: '[DALI new]']
+  rejection_reason    text        [note: '[DALI new]']
+}
+
+Table hpo_processes [note: 'DALI new — tracks an accepted run on the testbed HPO platform'] {
+  id              uuid        [pk, note: '[28.105 Top]']
+  created_at      timestamp   [not null, note: '[28.105 Top]']
+  updated_at      timestamp   [not null, note: '[28.105 Top]']
+  managed_by      varchar     [note: '[28.105 Top]']
+  status          varchar     [not null, default: 'initializing', note: '[DALI ext] progressStatus vocabulary']
+  started_at      timestamp   [note: '[DALI ext]']
+  ended_at        timestamp   [note: '[DALI ext]']
+  external_ref    json        [note: '[DALI new] {plugin: hpo_ado, campaign_id: …, run_id: …}']
+  request_id      uuid        [not null, unique, ref: > hpo_requests.id, note: '[DALI new]']
+  testbed_id      uuid        [not null, ref: > testbeds.id, note: '[DALI new]']
+}
+
+Table hpo_reports [note: 'DALI new — best config, metric and trial history once a run reaches a terminal state'] {
+  id                          uuid        [pk, note: '[28.105 Top]']
+  created_at                  timestamp   [not null, note: '[28.105 Top]']
+  updated_at                  timestamp   [not null, note: '[28.105 Top]']
+  managed_by                  varchar     [note: '[28.105 Top]']
+  outcome                     varchar     [not null, note: '[DALI ext] success | failure | cancelled']
+  engine                      varchar     [note: '[DALI new] optimisation engine actually used']
+  best                        json        [note: '[DALI new] best trial — {trial, config, <metric>}']
+  trials                      json        [note: '[DALI new] full trial history']
+  suggested_training_config   json        [note: '[DALI new] config offered to seed a follow-up MLTrainingRequest']
+  error_message               text        [note: '[DALI new]']
+  duration_seconds            float       [note: '[DALI new]']
+  process_id                  uuid        [not null, unique, ref: > hpo_processes.id, note: '[DALI new]']
+  request_id                  uuid        [not null, unique, ref: > hpo_requests.id, note: '[DALI new]']
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EXTERNAL REFERENCES (context only)
+// ─────────────────────────────────────────────────────────────────────────
+
+Table datasets [note: 'Context only — full definition in schema_catalogue.dbml'] {
+  id      uuid        [pk]
+  name    varchar
+  s3_uri  varchar
+}
+
+Table ml_model_artifacts [note: 'Context only — full definition in schema_catalogue.dbml'] {
+  id    uuid        [pk]
+  kind  varchar
+  name  varchar
+}
+
+Table ml_model_entries [note: 'Context only — full definition in schema_catalogue.dbml'] {
+  id          uuid        [pk]
+  project_id  uuid
+  visibility  varchar
+}
+
+Table ml_models [note: 'Context only — full definition in schema_catalogue.dbml'] {
+  id                uuid        [pk]
+  ml_model_id       varchar
+  ml_model_version  varchar
+  lifecycle_state   varchar
+}
+
+Table projects [note: 'Context only — full definition in schema_admin.dbml'] {
+  id    uuid        [pk]
+  name  varchar
+}
+
+Table testbeds [note: 'Context only — full definition in schema_testbeds.dbml'] {
+  id      uuid        [pk]
+  name    varchar
+  status  varchar
+}
+
+Table users [note: 'Context only — full definition in schema_admin.dbml'] {
+  id        uuid        [pk]
+  username  varchar
+}

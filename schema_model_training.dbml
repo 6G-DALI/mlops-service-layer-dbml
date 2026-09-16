@@ -1,0 +1,208 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// 6G-DALI MLOps Service Layer — Model Catalogue + Training (focused view)
+// ─────────────────────────────────────────────────────────────────────────────
+// Generated from schema_full.dbml — do not edit by hand.
+//
+// Origin legend (notes):
+//   [28.105]      — directly from TS 28.105
+//   [28.105 Top]  — Top IOC fields (TS 28.622 Top, baseline for TS 28.105)
+//   [DALI ext]    — DALI extension of an existing standard attribute
+//   [DALI new]    — new field introduced by DALI
+//   [DALI-MAP]    — 6G-DALI-MAP metadata profile (MLDCAT-AP 2.0 subset)
+//
+// Tables marked "context only" are shown with their key fields so the diagram
+// renders standalone; their authoritative definition lives in schema_admin.dbml, schema_hpo.dbml, schema_testbeds.dbml.
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+Table ml_model_entries [note: 'MLModelCatalogue entry container — DALI new. Stable identity for a model family; holds 1..N ml_models versions, oldest-first, the first being the EMPTY shell.'] {
+  id              uuid        [pk, note: '[28.105 Top]']
+  created_at      timestamp   [not null, note: '[28.105 Top]']
+  updated_at      timestamp   [not null, note: '[28.105 Top]']
+  managed_by      varchar     [note: '[28.105 Top]']
+  project_id      uuid        [not null, ref: > projects.id, note: '[DALI new]']
+  owner_id        uuid        [ref: > users.id, note: '[DALI new] user who registered the entry']
+  visibility      varchar     [not null, default: 'project', note: '[DALI new] private | project | public']
+}
+
+Table ml_models [note: 'TS 28.105 MLModel IOC — extended. One row per model *version*; versions form a lineage tree under a single entry.'] {
+  id                          uuid        [pk, note: '[28.105 Top]']
+  created_at                  timestamp   [not null, note: '[28.105 Top]']
+  updated_at                  timestamp   [not null, note: '[28.105 Top]']
+  managed_by                  varchar     [note: '[28.105 Top]']
+  entry_id                    uuid        [not null, ref: > ml_model_entries.id, note: '[DALI new] NOT unique — many versions share one entry']
+  // ── TS 28.105 fields ──
+  ml_model_id                 varchar     [not null, unique, note: '[28.105] human-readable id, e.g. lstm-v1-project-x']
+  ai_ml_inference_name        varchar     [not null, note: '[28.105]']
+  ml_model_version            varchar     [not null, note: '[28.105]']
+  ml_training_type            varchar     [not null, default: 'initial', note: '[28.105] initial | pre_specialised | fine_tuning | re_training']
+  ml_capabilities_info        json        [note: '[28.105]']
+  expected_run_time_context   json        [note: '[28.105]']
+  training_context            json        [note: '[28.105]']
+  run_time_context            json        [note: '[28.105]']
+  // ── DALI extensions ──
+  lifecycle_state             varchar     [not null, default: 'empty', note: '[DALI ext] empty | trained | validated | archived']
+  framework                   varchar     [note: '[DALI new]']
+  framework_version           varchar     [note: '[DALI new]']
+  architecture                varchar     [note: '[DALI new]']
+  input_shape                 json        [note: '[DALI new] input signature — tensor shapes / feature schema']
+  output_shape                json        [note: '[DALI new] output signature — tensor shapes / label schema']
+  task_type                   varchar     [note: '[DALI new]']
+  flops_estimate              float       [note: '[DALI new] from the ML Workload Estimator']
+  training_metrics            json        [note: '[DALI new] loss, accuracy, … for trained/pretrained versions']
+  artifact_format             varchar     [note: '[DALI new] onnx | pytorch | tensorflow | keras | safetensors | pickle | h5 | other']
+  // ── 6G-DALI-MAP / MLDCAT-AP 2.0 ──
+  ml_model_type               varchar     [note: '[DALI-MAP] mlModelType — mandatory at API level']
+  ml_task                     varchar     [note: '[DALI-MAP] mlTask — mandatory at API level']
+  intended_use                text        [note: '[DALI-MAP] plain-text description of intended inference use']
+  how_to_use                  text        [note: '[DALI-MAP] snippet / instructions for running the model']
+  trained_on_dataset_uri      varchar     [note: '[DALI-MAP] trainedOn — mandatory for non-EMPTY versions']
+  issued_at                   timestamp   [note: '[DALI-MAP] dcterms:issued — when this version was first published']
+  // ── Provenance & lineage ──
+  issuer_id                   uuid        [ref: > users.id, note: '[DALI new] user who created/uploaded this version']
+  parent_model_id             uuid        [ref: > ml_models.id, note: '[DALI new] lineage — parent version']
+  training_request_id         uuid        [ref: > ml_training_requests.id, note: '[DALI new] training run that produced this version']
+}
+
+Table ml_model_artifacts [note: 'DALI new — version-scoped artifact store. Replaces the former onnx_path / weights_path columns on ml_models. Keyed models/{entry_id}/versions/{model_id}/{kind}/{name}; exactly one of s3_key or uri is set.'] {
+  id                uuid        [pk, note: '[28.105 Top]']
+  created_at        timestamp   [not null, note: '[28.105 Top]']
+  updated_at        timestamp   [not null, note: '[28.105 Top]']
+  managed_by        varchar     [note: '[28.105 Top]']
+  model_id          uuid        [not null, ref: > ml_models.id, note: '[DALI new]']
+  kind              varchar     [not null, note: '[DALI new] flow | weights | requirements | base_image | training_pipeline | hpo_train_script | hpo_requirements | hpo_base_image | docs | other']
+  name              varchar     [not null, note: '[DALI new]']
+  s3_key            varchar     [note: '[DALI new] set for uploaded files']
+  uri               varchar     [note: '[DALI new] set for external references, e.g. a Docker image']
+  content_type      varchar     [note: '[DALI new]']
+  size_bytes        int         [note: '[DALI new]']
+  checksum_sha256   varchar     [note: '[DALI new]']
+  format            varchar     [note: '[DALI new]']
+  upload_state      varchar     [not null, default: 'pending', note: '[DALI new] pending | uploaded']
+  is_primary        boolean     [not null, default: false, note: '[DALI new] the canonical artifact for its kind']
+  artifact_metadata json        [note: '[DALI new]']
+  uploaded_by_id    uuid        [ref: > users.id, note: '[DALI new]']
+
+  indexes {
+    (model_id, kind, name) [unique, name: 'uq_artifact_model_kind_name']
+  }
+}
+
+Table ml_model_metadata [note: 'Discovery metadata — DALI new. 1-to-1 with the catalogue entry, kept apart to keep the core record lean.'] {
+  id                          uuid        [pk, note: '[28.105 Top]']
+  created_at                  timestamp   [not null, note: '[28.105 Top]']
+  updated_at                  timestamp   [not null, note: '[28.105 Top]']
+  managed_by                  varchar     [note: '[28.105 Top]']
+  entry_id                    uuid        [not null, unique, ref: > ml_model_entries.id, note: '[DALI new]']
+  description                 text        [note: '[DALI new]']
+  tags                        json        [note: '[DALI new]']
+  license                     varchar     [note: '[DALI new]']
+  author                      varchar     [note: '[DALI new] auto-populated from the issuing user']
+  training_duration_seconds   float       [note: '[DALI new]']
+  hyperparameters             json        [note: '[DALI new]']
+  custom_properties           json        [note: '[DALI new]']
+  // ── 6G-DALI-MAP compliance flags ──
+  gdpr_compliant              boolean     [not null, default: false, note: '[DALI-MAP] dali:gdprCompliant']
+  fair_compliant              boolean     [not null, default: false, note: '[DALI-MAP] dali:fairCompliant']
+  sns_project_name            varchar     [note: '[DALI-MAP] dali:snsProjectName, e.g. 6G-DALI']
+  access_rights               varchar     [note: '[DALI-MAP] dcterms:accessRights, e.g. public | restricted']
+}
+
+Table datasets [note: 'DALI new — first-class dataset entity in the catalogue'] {
+  id              uuid        [pk, note: '[28.105 Top]']
+  created_at      timestamp   [not null, note: '[28.105 Top]']
+  updated_at      timestamp   [not null, note: '[28.105 Top]']
+  managed_by      varchar     [note: '[28.105 Top]']
+  project_id      uuid        [not null, ref: > projects.id, note: '[DALI new]']
+  owner_id        uuid        [ref: > users.id, note: '[DALI new]']
+  name            varchar     [not null, note: '[DALI new]']
+  description     text        [note: '[DALI new]']
+  s3_uri          varchar     [not null, note: '[DALI new]']
+  format          varchar     [note: '[DALI new]']
+  num_samples     int         [note: '[DALI new]']
+  visibility      varchar     [not null, default: 'project', note: '[DALI new] private | project | public']
+
+  indexes {
+    (project_id, name) [unique, name: 'uq_dataset_project_name']
+  }
+}
+
+Table ml_training_requests [note: 'TS 28.105 MLTrainingRequest IOC — extended'] {
+  id                      uuid        [pk, note: '[28.105 Top]']
+  created_at              timestamp   [not null, note: '[28.105 Top]']
+  updated_at              timestamp   [not null, note: '[28.105 Top]']
+  managed_by              varchar     [note: '[28.105 Top]']
+  source                  varchar     [not null, default: 'experimenter', note: '[28.105] trainingRequestSource — experimenter | system']
+  status                  varchar     [not null, default: 'not_started', note: '[28.105] requestStatus']
+  name                    varchar     [not null, note: '[DALI new]']
+  description             text        [note: '[DALI new]']
+  optimization_goal       varchar     [not null, default: 'balanced', note: '[DALI ext] time | energy | accuracy | balanced']
+  training_config         json        [note: '[DALI ext] extends trainingContext']
+  dataset_info            json        [note: '[DALI ext] extends the dataset reference']
+  required_capabilities   json        [note: '[DALI new] forwarded to the Task Placement Engine']
+  rejection_reason        text        [note: '[DALI new]']
+  project_id              uuid        [not null, ref: > projects.id, note: '[DALI new]']
+  submitted_by_id         uuid        [ref: > users.id, note: '[DALI new]']
+  testbed_id              uuid        [ref: > testbeds.id, note: '[DALI new]']
+  target_model_entry_id   uuid        [ref: > ml_model_entries.id, note: '[DALI new]']
+  source_hpo_report_id    uuid        [ref: > hpo_reports.id, note: '[DALI new] HPO report whose best config seeded this request']
+}
+
+Table ml_training_processes [note: 'TS 28.105 MLTrainingProcess IOC — extended'] {
+  id                          uuid        [pk, note: '[28.105 Top]']
+  created_at                  timestamp   [not null, note: '[28.105 Top]']
+  updated_at                  timestamp   [not null, note: '[28.105 Top]']
+  managed_by                  varchar     [note: '[28.105 Top]']
+  status                      varchar     [not null, default: 'initializing', note: '[28.105] progressStatus']
+  started_at                  timestamp   [note: '[28.105]']
+  ended_at                    timestamp   [note: '[28.105]']
+  progress_percentage         float       [note: '[28.105]']
+  log_url                     varchar     [note: '[DALI new]']
+  external_ref                json        [note: '[DALI new] plugin name + tool-specific ids/urls, e.g. {plugin: zenml, run_id: …}. Supersedes orchestrator_flow_run_id.']
+  orchestrator_decision       json        [note: '[DALI new] snapshot of the environment-selection decision (available_envs, selected_env, workload_estimate)']
+  request_id                  uuid        [not null, unique, ref: > ml_training_requests.id, note: '[DALI new]']
+  testbed_id                  uuid        [not null, ref: > testbeds.id, note: '[DALI new]']
+}
+
+Table ml_training_reports [note: 'TS 28.105 MLTrainingReport IOC — extended'] {
+  id                          uuid        [pk, note: '[28.105 Top]']
+  created_at                  timestamp   [not null, note: '[28.105 Top]']
+  updated_at                  timestamp   [not null, note: '[28.105 Top]']
+  managed_by                  varchar     [note: '[28.105 Top]']
+  outcome                     varchar     [not null, note: '[28.105] success | failure | cancelled']
+  duration_seconds            float       [note: '[28.105]']
+  final_metrics               json        [note: '[DALI ext] extends performanceRequirements']
+  artifacts                   json        [note: '[DALI new] extra artifact references (name → URI) reported alongside the weights']
+  experiment_id               varchar     [note: '[DALI new] id in the testbed experiment tracker']
+  error_message               text        [note: '[DALI new]']
+  process_id                  uuid        [not null, unique, ref: > ml_training_processes.id, note: '[DALI new]']
+  request_id                  uuid        [not null, unique, ref: > ml_training_requests.id, note: '[DALI new]']
+  produced_model_entry_id     uuid        [ref: > ml_model_entries.id, note: '[DALI new] produced artefact lineage — entry']
+  produced_model_id           uuid        [ref: > ml_models.id, note: '[DALI new] produced artefact lineage — exact version']
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EXTERNAL REFERENCES (context only)
+// ─────────────────────────────────────────────────────────────────────────
+
+Table hpo_reports [note: 'Context only — full definition in schema_hpo.dbml'] {
+  id       uuid        [pk]
+  outcome  varchar
+  engine   varchar
+}
+
+Table projects [note: 'Context only — full definition in schema_admin.dbml'] {
+  id    uuid        [pk]
+  name  varchar
+}
+
+Table testbeds [note: 'Context only — full definition in schema_testbeds.dbml'] {
+  id      uuid        [pk]
+  name    varchar
+  status  varchar
+}
+
+Table users [note: 'Context only — full definition in schema_admin.dbml'] {
+  id        uuid        [pk]
+  username  varchar
+}

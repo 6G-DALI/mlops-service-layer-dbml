@@ -1,0 +1,58 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// 6G-DALI MLOps Service Layer — Administration Domain
+// ─────────────────────────────────────────────────────────────────────────────
+// Generated from schema_full.dbml — do not edit by hand.
+//
+// Origin legend (notes):
+//   [28.105]      — directly from TS 28.105
+//   [28.105 Top]  — Top IOC fields (TS 28.622 Top, baseline for TS 28.105)
+//   [DALI ext]    — DALI extension of an existing standard attribute
+//   [DALI new]    — new field introduced by DALI
+//   [DALI-MAP]    — 6G-DALI-MAP metadata profile (MLDCAT-AP 2.0 subset)
+//
+// Tables marked "context only" are shown with their key fields so the diagram
+// renders standalone; their authoritative definition lives in schema_full.dbml.
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+Table users [note: 'DALI-specific — no analogue in TS 28.105 / TS 23.482. Identity is federated: the record mirrors a Keycloak account and holds no credential material.'] {
+  id              uuid        [pk, note: '[28.105 Top]']
+  created_at      timestamp   [not null, note: '[28.105 Top]']
+  updated_at      timestamp   [not null, note: '[28.105 Top]']
+  managed_by      varchar     [note: '[28.105 Top]']
+  username        varchar     [not null, unique, note: '[DALI new]']
+  email           varchar     [not null, unique, note: '[DALI new]']
+  keycloak_sub    varchar     [unique, note: '[DALI new] OIDC subject of the linked Keycloak account']
+  role            varchar     [not null, default: 'experimenter', note: '[DALI new] admin | experimenter']
+  is_active       boolean     [not null, default: true, note: '[DALI new]']
+}
+
+Table projects [note: 'DALI Administration domain — resource-scoping construct, no analogue in TS 28.105'] {
+  id              uuid        [pk, note: '[28.105 Top]']
+  created_at      timestamp   [not null, note: '[28.105 Top]']
+  updated_at      timestamp   [not null, note: '[28.105 Top]']
+  managed_by      varchar     [note: '[28.105 Top]']
+  name            varchar     [not null, unique, note: '[DALI new]']
+  description     varchar     [note: '[DALI new]']
+  owner_id        uuid        [not null, ref: > users.id, note: '[DALI new]']
+}
+
+Table project_memberships [note: 'DALI new — join table user ↔ project'] {
+  user_id         uuid        [pk, ref: > users.id, note: '[DALI new]']
+  project_id      uuid        [pk, ref: > projects.id, note: '[DALI new]']
+  joined_at       timestamp   [not null, note: '[DALI new]']
+}
+
+Table access_policies [note: 'DALI new — fine-grained ABAC grants on top of project membership'] {
+  id              uuid        [pk, note: '[28.105 Top]']
+  created_at      timestamp   [not null, note: '[28.105 Top]']
+  updated_at      timestamp   [not null, note: '[28.105 Top]']
+  managed_by      varchar     [note: '[28.105 Top]']
+  user_id         uuid        [not null, ref: > users.id, note: '[DALI new]']
+  project_id      uuid        [not null, ref: > projects.id, note: '[DALI new]']
+  can_read        boolean     [not null, default: true, note: '[DALI new]']
+  can_write       boolean     [not null, default: false, note: '[DALI new]']
+  can_delete      boolean     [not null, default: false, note: '[DALI new]']
+  resource_type   varchar     [not null, note: '[DALI new] testbed | model | dataset | training | deployment']
+  resource_id     uuid        [note: '[DALI new] null = all resources of the type in the project']
+}

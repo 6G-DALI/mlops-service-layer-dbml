@@ -1,0 +1,79 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// 6G-DALI MLOps Service Layer — Testbed Domain
+// ─────────────────────────────────────────────────────────────────────────────
+// Generated from schema_full.dbml — do not edit by hand.
+//
+// Origin legend (notes):
+//   [28.105]      — directly from TS 28.105
+//   [28.105 Top]  — Top IOC fields (TS 28.622 Top, baseline for TS 28.105)
+//   [DALI ext]    — DALI extension of an existing standard attribute
+//   [DALI new]    — new field introduced by DALI
+//   [DALI-MAP]    — 6G-DALI-MAP metadata profile (MLDCAT-AP 2.0 subset)
+//
+// Tables marked "context only" are shown with their key fields so the diagram
+// renders standalone; their authoritative definition lives in schema_admin.dbml.
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+Table testbeds [note: 'DALI new — extends the AIMLE client concept from TS 23.482'] {
+  id              uuid        [pk, note: '[28.105 Top]']
+  created_at      timestamp   [not null, note: '[28.105 Top]']
+  updated_at      timestamp   [not null, note: '[28.105 Top]']
+  managed_by      varchar     [note: '[28.105 Top]']
+  name            varchar     [not null, unique, note: '[DALI new]']
+  description     text        [note: '[DALI new]']
+  location        varchar     [note: '[DALI new]']
+  status          varchar     [not null, default: 'online', note: '[DALI new] online | offline | maintenance']
+  is_public       boolean     [not null, default: false, note: '[DALI new] true = usable by every authenticated user, bypassing project association']
+}
+
+Table testbed_project_associations [note: 'DALI new — M2M join: which projects may use a testbed'] {
+  testbed_id      uuid        [pk, ref: > testbeds.id, note: '[DALI new]']
+  project_id      uuid        [pk, ref: > projects.id, note: '[DALI new]']
+  associated_at   timestamp   [not null, note: '[DALI new]']
+}
+
+Table hw_capabilities [note: 'DALI new — 1-to-1 with Testbed'] {
+  id                uuid        [pk, note: '[28.105 Top]']
+  created_at        timestamp   [not null, note: '[28.105 Top]']
+  updated_at        timestamp   [not null, note: '[28.105 Top]']
+  managed_by        varchar     [note: '[28.105 Top]']
+  testbed_id        uuid        [not null, unique, ref: > testbeds.id, note: '[DALI new]']
+  ram_gb            float       [not null, default: 0, note: '[DALI new]']
+  storage_gb        float       [not null, default: 0, note: '[DALI new]']
+  cpu_cores         int         [not null, default: 0, note: '[DALI new]']
+  cpu_model         varchar     [note: '[DALI new]']
+  gpu_count         int         [not null, default: 0, note: '[DALI new]']
+  gpu_model         varchar     [note: '[DALI new]']
+  gpu_vram_gb       float       [note: '[DALI new]']
+  last_refreshed_at varchar     [note: '[DALI new]']
+}
+
+Table ml_tools_stacks [note: 'DALI new — 1-to-1 with Testbed; groups the tools deployed on it'] {
+  id              uuid        [pk, note: '[28.105 Top]']
+  created_at      timestamp   [not null, note: '[28.105 Top]']
+  updated_at      timestamp   [not null, note: '[28.105 Top]']
+  managed_by      varchar     [note: '[28.105 Top]']
+  testbed_id      uuid        [not null, unique, ref: > testbeds.id, note: '[DALI new]']
+}
+
+Table ml_tools [note: 'DALI new — one tool in a testbed stack. Exactly one orchestrator, experiment_tracker and artifact_storage are mandatory; inference_runtime, mlops_orchestrator and hpo are optional.'] {
+  id              uuid        [pk, note: '[28.105 Top]']
+  created_at      timestamp   [not null, note: '[28.105 Top]']
+  updated_at      timestamp   [not null, note: '[28.105 Top]']
+  managed_by      varchar     [note: '[28.105 Top]']
+  tools_stack_id  uuid        [not null, ref: > ml_tools_stacks.id, note: '[DALI new]']
+  tool_type       varchar     [not null, note: '[DALI new] orchestrator | experiment_tracker | artifact_storage | inference_runtime | mlops_orchestrator | hpo']
+  name            varchar     [note: '[DALI new]']
+  uri             varchar     [not null, note: '[DALI new] service endpoint']
+  params          json        [note: '[DALI new] tool-specific configuration, consumed by the resolved plugin']
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EXTERNAL REFERENCES (context only)
+// ─────────────────────────────────────────────────────────────────────────
+
+Table projects [note: 'Context only — full definition in schema_admin.dbml'] {
+  id    uuid        [pk]
+  name  varchar
+}

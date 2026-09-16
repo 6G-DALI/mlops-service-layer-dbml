@@ -1,0 +1,82 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// 6G-DALI MLOps Service Layer — Orchestrator Domain (internal dispatch plumbing)
+// ─────────────────────────────────────────────────────────────────────────────
+// Generated from schema_full.dbml — do not edit by hand.
+//
+// Origin legend (notes):
+//   [28.105]      — directly from TS 28.105
+//   [28.105 Top]  — Top IOC fields (TS 28.622 Top, baseline for TS 28.105)
+//   [DALI ext]    — DALI extension of an existing standard attribute
+//   [DALI new]    — new field introduced by DALI
+//   [DALI-MAP]    — 6G-DALI-MAP metadata profile (MLDCAT-AP 2.0 subset)
+//
+// Tables marked "context only" are shown with their key fields so the diagram
+// renders standalone; their authoritative definition lives in schema_catalogue.dbml, schema_model_training.dbml, schema_testbeds.dbml.
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+Table dispatch_queue [note: 'DALI new — DB-backed FIFO serialising activate/trigger/poll against a single testbed Control API endpoint'] {
+  id              uuid        [pk, note: '[28.105 Top]']
+  created_at      timestamp   [not null, note: '[28.105 Top]']
+  updated_at      timestamp   [not null, note: '[28.105 Top]']
+  managed_by      varchar     [note: '[28.105 Top]']
+  endpoint_key    varchar     [not null, note: '[DALI new] Control API base URL — the serialisation unit']
+  task_type       varchar     [not null, default: 'training', note: '[DALI new]']
+  process_id      uuid        [not null, ref: > ml_training_processes.id, note: '[DALI new]']
+  testbed_id      uuid        [not null, ref: > testbeds.id, note: '[DALI new]']
+  stack_name      varchar     [not null, note: '[DALI new]']
+  pipeline_name   varchar     [not null, note: '[DALI new]']
+  parameters      json        [not null, note: '[DALI new]']
+  state           varchar     [not null, default: 'queued', note: '[DALI new] queued | activating | triggering | awaiting_start | done | failed']
+  attempts        int         [not null, default: 0, note: '[DALI new]']
+  enqueued_at     timestamp   [not null, note: '[DALI new]']
+  started_at      timestamp   [note: '[DALI new]']
+  error           varchar     [note: '[DALI new]']
+}
+
+Table pipeline_registrations [note: 'DALI new — per (model, testbed) sync state of a training pipeline registered with a testbed Control API'] {
+  id                      uuid        [pk, note: '[28.105 Top]']
+  created_at              timestamp   [not null, note: '[28.105 Top]']
+  updated_at              timestamp   [not null, note: '[28.105 Top]']
+  managed_by              varchar     [note: '[28.105 Top]']
+  model_id                uuid        [not null, ref: > ml_models.id, note: '[DALI new]']
+  testbed_id              uuid        [not null, ref: > testbeds.id, note: '[DALI new]']
+  plugin                  varchar     [not null, note: '[DALI new] plugin that owns the registration, e.g. zenml']
+  external_pipeline_name  varchar     [not null, note: '[DALI new]']
+  version                 varchar     [note: '[DALI new]']
+  state                   varchar     [not null, default: 'pending', note: '[DALI new] pending | registered | failed']
+  last_error              varchar     [note: '[DALI new]']
+  artifact_id             uuid        [ref: > ml_model_artifacts.id, note: '[DALI new] the training_pipeline artifact registered here — re-register when it changes']
+
+  indexes {
+    (model_id, testbed_id) [unique, name: 'uq_pipeline_registration_model_testbed']
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EXTERNAL REFERENCES (context only)
+// ─────────────────────────────────────────────────────────────────────────
+
+Table ml_model_artifacts [note: 'Context only — full definition in schema_catalogue.dbml'] {
+  id    uuid        [pk]
+  kind  varchar
+  name  varchar
+}
+
+Table ml_models [note: 'Context only — full definition in schema_catalogue.dbml'] {
+  id                uuid        [pk]
+  ml_model_id       varchar
+  ml_model_version  varchar
+  lifecycle_state   varchar
+}
+
+Table ml_training_processes [note: 'Context only — full definition in schema_model_training.dbml'] {
+  id      uuid        [pk]
+  status  varchar
+}
+
+Table testbeds [note: 'Context only — full definition in schema_testbeds.dbml'] {
+  id      uuid        [pk]
+  name    varchar
+  status  varchar
+}

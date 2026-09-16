@@ -1,0 +1,124 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// 6G-DALI MLOps Service Layer — Deployment Domain
+// ─────────────────────────────────────────────────────────────────────────────
+// Generated from schema_full.dbml — do not edit by hand.
+//
+// Origin legend (notes):
+//   [28.105]      — directly from TS 28.105
+//   [28.105 Top]  — Top IOC fields (TS 28.622 Top, baseline for TS 28.105)
+//   [DALI ext]    — DALI extension of an existing standard attribute
+//   [DALI new]    — new field introduced by DALI
+//   [DALI-MAP]    — 6G-DALI-MAP metadata profile (MLDCAT-AP 2.0 subset)
+//
+// Tables marked "context only" are shown with their key fields so the diagram
+// renders standalone; their authoritative definition lives in schema_admin.dbml, schema_catalogue.dbml, schema_testbeds.dbml.
+// ─────────────────────────────────────────────────────────────────────────────
+
+
+Table ml_deployment_requests [note: 'DALI new — MLDeploymentFunction, modelled on the TS 28.105 request triple'] {
+  id                      uuid        [pk, note: '[28.105 Top]']
+  created_at              timestamp   [not null, note: '[28.105 Top]']
+  updated_at              timestamp   [not null, note: '[28.105 Top]']
+  managed_by              varchar     [note: '[28.105 Top]']
+  name                    varchar     [not null, note: '[DALI new]']
+  description             text        [note: '[DALI new]']
+  status                  varchar     [not null, default: 'not_started', note: '[DALI ext] requestStatus vocabulary']
+  serving_runtime         varchar     [not null, default: 'onnx_runtime', note: '[DALI new] onnx_runtime | triton | torchserve | custom']
+  deployment_strategy     varchar     [not null, default: 'replace', note: '[DALI new] replace | blue_green | canary']
+  optimization_goal       varchar     [not null, default: 'latency', note: '[DALI new] latency | throughput | cost']
+  deployment_config       json        [note: '[DALI new] replicas, resource limits, env vars']
+  rejection_reason        text        [note: '[DALI new]']
+  project_id              uuid        [not null, ref: > projects.id, note: '[DALI new]']
+  submitted_by_id         uuid        [ref: > users.id, note: '[DALI new]']
+  model_entry_id          uuid        [not null, ref: > ml_model_entries.id, note: '[DALI new] catalogue entry being deployed']
+  model_id                uuid        [ref: > ml_models.id, note: '[DALI new] exact version pinned at submission time']
+  testbed_id              uuid        [ref: > testbeds.id, note: '[DALI new]']
+}
+
+Table ml_deployment_processes [note: 'DALI new — stays RUNNING for as long as the model is live'] {
+  id                          uuid        [pk, note: '[28.105 Top]']
+  created_at                  timestamp   [not null, note: '[28.105 Top]']
+  updated_at                  timestamp   [not null, note: '[28.105 Top]']
+  managed_by                  varchar     [note: '[28.105 Top]']
+  status                      varchar     [not null, default: 'initializing', note: '[DALI ext] initializing | deploying | running | stopping | stopped | failed | cancelled']
+  started_at                  timestamp   [note: '[DALI ext]']
+  ended_at                    timestamp   [note: '[DALI ext]']
+  progress_percentage         float       [note: '[DALI ext]']
+  log_url                     varchar     [note: '[DALI new]']
+  external_ref                json        [note: '[DALI new] plugin name + tool-specific ids/urls. Supersedes orchestrator_flow_run_id.']
+  orchestrator_decision       json        [note: '[DALI new] snapshot of the environment-selection decision']
+  request_id                  uuid        [not null, unique, ref: > ml_deployment_requests.id, note: '[DALI new]']
+  testbed_id                  uuid        [not null, ref: > testbeds.id, note: '[DALI new]']
+}
+
+Table ml_deployment_reports [note: 'DALI new — terminal outcome artefact'] {
+  id                          uuid        [pk, note: '[28.105 Top]']
+  created_at                  timestamp   [not null, note: '[28.105 Top]']
+  updated_at                  timestamp   [not null, note: '[28.105 Top]']
+  managed_by                  varchar     [note: '[28.105 Top]']
+  outcome                     varchar     [not null, note: '[DALI ext] success | failure | rollback | cancelled']
+  duration_seconds            float       [note: '[DALI new] dispatch → ready/terminal, in seconds']
+  error_message               text        [note: '[DALI new]']
+  serving_backend             varchar     [note: '[DALI new] backend that actually served the model']
+  artifact_format             varchar     [note: '[DALI new] format of the artifact that was served']
+  final_endpoint              varchar     [note: '[DALI new] endpoint URL at the end of the process']
+  process_id                  uuid        [not null, unique, ref: > ml_deployment_processes.id, note: '[DALI new]']
+  request_id                  uuid        [not null, unique, ref: > ml_deployment_requests.id, note: '[DALI new]']
+  deployed_model_id           uuid        [ref: > deployed_ml_models.id, note: '[DALI new]']
+}
+
+Table deployed_ml_models [note: 'DALI new — live serving endpoint record'] {
+  id                          uuid        [pk, note: '[28.105 Top]']
+  created_at                  timestamp   [not null, note: '[28.105 Top]']
+  updated_at                  timestamp   [not null, note: '[28.105 Top]']
+  managed_by                  varchar     [note: '[28.105 Top]']
+  serving_runtime             varchar     [not null, note: '[DALI new]']
+  inference_endpoint_url      varchar     [note: '[DALI new] HTTP(S) inference endpoint']
+  status                      varchar     [not null, default: 'running', note: '[DALI new] running | stopped | error | degraded']
+  health_status               varchar     [not null, default: 'unknown', note: '[DALI new] healthy | unhealthy | unknown']
+  replicas_desired            int         [not null, default: 1, note: '[DALI new]']
+  replicas_running            int         [not null, default: 0, note: '[DALI new]']
+  last_health_check_at        timestamp   [note: '[DALI new]']
+  deployment_config           json        [note: '[DALI new]']
+  input_shapes                json        [note: '[DALI new] input tensor shapes as reported by the serving backend']
+  output_shapes               json        [note: '[DALI new] output tensor shapes as reported by the serving backend']
+  backend_metadata            json        [note: '[DALI new] free-form backend metadata, e.g. KServe v2 model metadata']
+  model_entry_id              uuid        [not null, ref: > ml_model_entries.id, note: '[DALI new]']
+  ml_model_id                 uuid        [ref: > ml_models.id, note: '[DALI new] the exact version being served here']
+  testbed_id                  uuid        [not null, ref: > testbeds.id, note: '[DALI new]']
+  deployment_request_id       uuid        [ref: > ml_deployment_requests.id, note: '[DALI new]']
+  process_id                  uuid        [unique, ref: > ml_deployment_processes.id, note: '[DALI new]']
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// EXTERNAL REFERENCES (context only)
+// ─────────────────────────────────────────────────────────────────────────
+
+Table ml_model_entries [note: 'Context only — full definition in schema_catalogue.dbml'] {
+  id          uuid        [pk]
+  project_id  uuid
+  visibility  varchar
+}
+
+Table ml_models [note: 'Context only — full definition in schema_catalogue.dbml'] {
+  id                uuid        [pk]
+  ml_model_id       varchar
+  ml_model_version  varchar
+  lifecycle_state   varchar
+}
+
+Table projects [note: 'Context only — full definition in schema_admin.dbml'] {
+  id    uuid        [pk]
+  name  varchar
+}
+
+Table testbeds [note: 'Context only — full definition in schema_testbeds.dbml'] {
+  id      uuid        [pk]
+  name    varchar
+  status  varchar
+}
+
+Table users [note: 'Context only — full definition in schema_admin.dbml'] {
+  id        uuid        [pk]
+  username  varchar
+}
